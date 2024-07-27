@@ -1,24 +1,34 @@
-//Carro a Control Remoto y App con AppInventor
-//Variables del Sensor Ultrasónico
-int trigPin = 3;
-int echoPin = 4;
+#include <SoftwareSerial.h>
+
+// Configuración de pines para la comunicación serial Bluetooth
+const int rxPin = 2; // Pin de recepción (RX) del módulo Bluetooth
+const int txPin = 3; // Pin de transmisión (TX) del módulo Bluetooth
+
+// Crear un objeto SoftwareSerial para la comunicación Bluetooth
+SoftwareSerial bluetoothSerial(rxPin, txPin);
+
+// Variables del Sensor Ultrasónico
+const int trigPin = 4;
+const int echoPin = 5;
 
 // Motores
-int motorI1 = 10;
-int motorI2 = 9;
-int motorD1 = 6;
-int motorD2 = 5;
+const int motorI1 = 6;
+const int motorI2 = 7;
+const int motorD1 = 8;
+const int motorD2 = 9;
 
 // Otros
-int vel = 250;
-int disMin = 7; // Nueva distancia mínima para detenerse en 7 cm
+const int vel = 250;
+const int disMin = 7; // Nueva distancia mínima para detenerse en 7 cm
 int distancia;
 
 // Variable para almacenar el tiempo en que se detuvo el carro
 unsigned long tiempoDetenido = 0; 
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(9600); // Comunicación serial con el monitor serie
+  bluetoothSerial.begin(9600); // Comunicación serial con el módulo Bluetooth
+
   pinMode(echoPin, INPUT);
   pinMode(trigPin, OUTPUT);
 
@@ -31,70 +41,93 @@ void setup() {
 void loop() {
   distancia = calcularDistancia();
 
-  if (Serial.available() > 0) {
-    char infoDeApp = Serial.read();
-    if (infoDeApp == 'A') {
-      digitalWrite(motorI1, 0);
-      digitalWrite(motorI2, vel);
-      digitalWrite(motorD1, 0);
-      digitalWrite(motorD2, vel);
-    } else if (infoDeApp == 'B') {
-      digitalWrite(motorI1, vel);
-      digitalWrite(motorI2, 0);
-      digitalWrite(motorD1, vel);
-      digitalWrite(motorD2, 0);
-    } else if (infoDeApp == 'I') {
-      digitalWrite(motorI1, 0);
-      digitalWrite(motorI2, vel);
-      digitalWrite(motorD1, 0);
-      digitalWrite(motorD2, 0);
-    } else if (infoDeApp == 'D') {
-      digitalWrite(motorI1, 0);
-      digitalWrite(motorI2, 0);
-      digitalWrite(motorD1, 0);
-      digitalWrite(motorD2, vel);
-      
-    } else if (infoDeApp == 'P') {
-      // Si la tecla se suelta, se detiene el carro y se almacena 
-      //el tiempo
-      digitalWrite(motorI1, 0);
-      digitalWrite(motorI2, 0);
-      digitalWrite(motorD1, 0);
-      digitalWrite(motorD2, 0);
-      // Almacenar el tiempo actual
-      tiempoDetenido = millis(); 
+  if (bluetoothSerial.available() > 0) {
+    char infoDeApp = bluetoothSerial.read();
+    switch (infoDeApp) {
+      case 'A': // Adelante
+        moverAdelante();
+        break;
+      case 'B': // Atrás
+        moverAtras();
+        break;
+      case 'I': // Izquierda
+        girarIzquierda();
+        break;
+      case 'D': // Derecha
+        girarDerecha();
+        break;
+      case 'P': // Parar
+        detener();
+        tiempoDetenido = millis(); // Almacenar el tiempo actual
+        break;
+      default:
+        detener(); // Por defecto, detener el carro si el comando no es reconocido
+        break;
     }
   }
 
   // Si han pasado más de 3 segundos desde que se detuvo el carro, 
-  //se permite seguir manejando
+  // se permite seguir manejando
   if (millis() - tiempoDetenido >= 3000) {
-    // Reiniciar el tiempo detenido
-    tiempoDetenido = 0;
+    tiempoDetenido = 0; // Reiniciar el tiempo detenido
   }
 
-  // Si se detecta un obstáculo a 7cm, se detiene el carro pero se 
-  //permite seguir manejando después de 3 segundos
+  // Si se detecta un obstáculo a 7 cm, se detiene el carro pero se 
+  // permite seguir manejando después de 3 segundos
   if (distancia <= disMin && millis() - tiempoDetenido >= 3000) {
-    digitalWrite(motorI1, 0);
-    digitalWrite(motorI2, 0);
-    digitalWrite(motorD1, 0);
-    digitalWrite(motorD2, 0);
+    detener();
   }
 
   delay(20);
 }
 
-int calcularDistancia() {
-  long duration, distance;
+void moverAdelante() {
+  analogWrite(motorI1, vel);
+  analogWrite(motorI2, 0);
+  analogWrite(motorD1, vel);
+  analogWrite(motorD2, 0);
+}
 
+void moverAtras() {
+  analogWrite(motorI1, 0);
+  analogWrite(motorI2, vel);
+  analogWrite(motorD1, 0);
+  analogWrite(motorD2, vel);
+}
+
+void girarIzquierda() {
+  analogWrite(motorI1, vel);
+  analogWrite(motorI2, 0);
+  analogWrite(motorD1, 0);
+  analogWrite(motorD2, 0);
+}
+
+void girarDerecha() {
+  analogWrite(motorI1, 0);
+  analogWrite(motorI2, 0);
+  analogWrite(motorD1, vel);
+  analogWrite(motorD2, 0);
+}
+
+void detener() {
+  analogWrite(motorI1, 0);
+  analogWrite(motorI2, 0);
+  analogWrite(motorD1, 0);
+  analogWrite(motorD2, 0);
+}
+
+int calcularDistancia() {
+  long duration;
+  int distance;
+
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
   digitalWrite(trigPin, HIGH);
   delayMicroseconds(10);
   digitalWrite(trigPin, LOW);
 
   duration = pulseIn(echoPin, HIGH);
-  distance = duration / 58.2;
+  distance = duration * 0.034 / 2; // Convertir a cm
 
-  delay(10);
   return distance;
 }
